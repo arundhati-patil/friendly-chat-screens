@@ -4,9 +4,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { BsThreeDotsVertical, BsSearch, BsPhone, BsCamera } from 'react-icons/bs';
-import { IoMdSend, IoMdAttach, IoMdMic } from 'react-icons/io';
-import { MdEmojiEmotions } from 'react-icons/md';
+import { 
+  BsThreeDotsVertical, 
+  BsSearch, 
+  BsPhone, 
+  BsCamera,
+  BsPaperclip,
+  BsEmojiSmile,
+  BsMic,
+  BsArrowRight,
+  BsBookmark,
+  BsPersonCheck
+} from 'react-icons/bs';
 
 interface Message {
   id: string;
@@ -66,7 +75,6 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       return;
     }
 
-    // Fetch sender profiles separately
     const messagesWithSenders = await Promise.all(
       data.map(async (message) => {
         const { data: profile } = await supabase
@@ -97,7 +105,6 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
     if (!conv) return;
 
     if (!conv.is_group) {
-      // Get other user info for direct messages
       const { data: participant } = await supabase
         .from('conversation_participants')
         .select('user_id')
@@ -136,7 +143,6 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
           filter: `conversation_id=eq.${conversationId}`
         },
         async (payload) => {
-          // Fetch the sender profile for the new message
           const { data: profile } = await supabase
             .from('profiles')
             .select('username, avatar_url')
@@ -191,21 +197,11 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
 
   const formatDate = (timestamp: string) => {
     const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    }
+    return date.toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   if (!conversationId) {
@@ -213,7 +209,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       <div className="flex-1 flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="w-32 h-32 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
-            <BsThreeDotsVertical className="w-8 h-8 text-gray-400" />
+            <BsChat className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Chat</h3>
           <p className="text-gray-500">Select a conversation to start messaging</p>
@@ -226,54 +222,59 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
     ? conversationInfo.name 
     : conversationInfo?.otherUser?.username;
 
-  const isOnline = conversationInfo?.otherUser?.status === 'online';
-
   return (
     <div className="flex-1 flex flex-col bg-white">
       {/* Chat Header */}
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="relative">
-              <Avatar className="w-10 h-10">
-                <AvatarImage src={conversationInfo?.otherUser?.avatar_url || undefined} />
-                <AvatarFallback className="bg-green-500 text-white">
-                  {displayName?.charAt(0).toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-              {!conversationInfo?.is_group && isOnline && (
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-              )}
-            </div>
+            <Avatar className="w-10 h-10">
+              <AvatarImage src={conversationInfo?.otherUser?.avatar_url || undefined} />
+              <AvatarFallback className="bg-blue-500 text-white">
+                {displayName?.charAt(0).toUpperCase() || 'U'}
+              </AvatarFallback>
+            </Avatar>
             <div>
-              <h2 className="font-medium text-gray-900">{displayName || 'Unknown User'}</h2>
-              {!conversationInfo?.is_group && (
-                <p className="text-sm text-gray-500">
-                  {isOnline ? 'Online' : 'Last seen recently'}
-                </p>
-              )}
+              <h2 className="font-medium text-gray-900 flex items-center space-x-2">
+                <span>{displayName || 'Test El Centro'}</span>
+                <div className="flex space-x-1">
+                  <Avatar className="w-6 h-6">
+                    <AvatarFallback className="bg-gray-400 text-white text-xs">R</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="w-6 h-6">
+                    <AvatarFallback className="bg-gray-400 text-white text-xs">A</AvatarFallback>
+                  </Avatar>
+                  <Avatar className="w-6 h-6">
+                    <AvatarFallback className="bg-gray-400 text-white text-xs">T</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm text-gray-500">+3</span>
+                </div>
+              </h2>
+              <p className="text-sm text-gray-500">
+                Roshson Airtel Terminal Jio, Bharat Kumar Ramesh, Periskope
+              </p>
             </div>
           </div>
           
           <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <BsCamera className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-gray-100 rounded">
+              <BsBookmark className="w-4 h-4 text-gray-600" />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <BsPhone className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-gray-100 rounded">
+              <BsPersonCheck className="w-4 h-4 text-gray-600" />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <BsSearch className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-gray-100 rounded">
+              <BsSearch className="w-4 h-4 text-gray-600" />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full">
-              <BsThreeDotsVertical className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-gray-100 rounded">
+              <BsThreeDotsVertical className="w-4 h-4 text-gray-600" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
         {messages.map((message, index) => {
           const isCurrentUser = message.sender_id === user?.id;
           const showDate = index === 0 || 
@@ -290,29 +291,48 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
               )}
               
               <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex items-end space-x-2 max-w-xs lg:max-w-md ${
+                <div className={`flex items-start space-x-2 max-w-xs lg:max-w-md ${
                   isCurrentUser ? 'flex-row-reverse space-x-reverse' : ''
                 }`}>
                   {!isCurrentUser && (
                     <Avatar className="w-8 h-8">
                       <AvatarImage src={message.sender.avatar_url || undefined} />
-                      <AvatarFallback className="bg-gray-500 text-white text-xs">
+                      <AvatarFallback className="bg-green-500 text-white text-xs">
                         {message.sender.username?.charAt(0).toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
                   )}
                   
-                  <div className={`px-4 py-2 rounded-lg ${
-                    isCurrentUser 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-white text-gray-900 shadow-sm'
-                  }`}>
-                    <p className="text-sm">{message.content}</p>
-                    <p className={`text-xs mt-1 ${
-                      isCurrentUser ? 'text-green-100' : 'text-gray-500'
+                  <div className="space-y-1">
+                    {!isCurrentUser && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-medium text-gray-900">
+                          {message.sender.username || 'Roshisaq Airtel'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          +91 93848 47025
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {formatTime(message.created_at)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    <div className={`px-3 py-2 rounded-lg ${
+                      isCurrentUser 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-white text-gray-900 shadow-sm border'
                     }`}>
-                      {formatTime(message.created_at)}
-                    </p>
+                      <p className="text-sm">{message.content}</p>
+                    </div>
+                    
+                    {isCurrentUser && (
+                      <div className="text-right">
+                        <span className="text-xs text-gray-500">
+                          {formatTime(message.created_at)} ✓✓
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -324,50 +344,68 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
 
       {/* Message Input */}
       <div className="p-4 bg-white border-t border-gray-200">
-        <form onSubmit={sendMessage} className="flex items-center space-x-2">
-          <button
-            type="button"
-            className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
-          >
-            <MdEmojiEmotions className="w-6 h-6" />
-          </button>
-          
-          <button
-            type="button"
-            className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
-          >
-            <IoMdAttach className="w-6 h-6" />
-          </button>
-
+        <div className="flex items-center space-x-2 mb-2">
+          <button className="text-green-600 text-sm font-medium">WhatsApp</button>
+          <button className="text-gray-500 text-sm">Private Note</button>
+        </div>
+        
+        <form onSubmit={sendMessage} className="flex items-end space-x-2">
           <div className="flex-1 relative">
+            <div className="flex items-center space-x-2 mb-2">
+              <button
+                type="button"
+                className="p-1 hover:bg-gray-100 rounded text-gray-500"
+              >
+                <BsPaperclip className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="p-1 hover:bg-gray-100 rounded text-gray-500"
+              >
+                <BsEmojiSmile className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="p-1 hover:bg-gray-100 rounded text-gray-500"
+              >
+                <BsCamera className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="p-1 hover:bg-gray-100 rounded text-gray-500"
+              >
+                <BsMic className="w-4 h-4" />
+              </button>
+            </div>
+            
             <Input
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type a message..."
-              className="pr-12 rounded-full border-gray-300"
+              placeholder="Message..."
+              className="border-gray-300 rounded-lg"
               disabled={loading}
             />
-            {!newMessage.trim() && (
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-              >
-                <IoMdMic className="w-5 h-5" />
-              </button>
-            )}
           </div>
 
-          {newMessage.trim() && (
-            <Button
-              type="submit"
-              disabled={loading}
-              className="bg-green-500 hover:bg-green-600 rounded-full w-10 h-10 p-0"
-            >
-              <IoMdSend className="w-5 h-5" />
-            </Button>
-          )}
+          <Button
+            type="submit"
+            disabled={loading || !newMessage.trim()}
+            className="bg-green-600 hover:bg-green-700 rounded-full w-10 h-10 p-0"
+          >
+            <BsArrowRight className="w-4 h-4" />
+          </Button>
         </form>
+
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+          <div className="flex items-center space-x-2">
+            <Avatar className="w-4 h-4">
+              <AvatarFallback className="bg-green-500 text-white text-xs">P</AvatarFallback>
+            </Avatar>
+            <span>Periskope</span>
+          </div>
+          <span>⚪</span>
+        </div>
       </div>
     </div>
   );

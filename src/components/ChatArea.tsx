@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,7 +15,8 @@ import {
   BsMic,
   BsArrowRight,
   BsBookmark,
-  BsPersonCheck
+  BsPersonCheck,
+  BsChat
 } from 'react-icons/bs';
 
 interface Message {

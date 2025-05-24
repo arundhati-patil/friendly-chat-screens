@@ -56,11 +56,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
         id,
         content,
         sender_id,
-        created_at,
-        profiles!inner (
-          username,
-          avatar_url
-        )
+        created_at
       `)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
@@ -70,10 +66,23 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       return;
     }
 
-    setMessages(data.map(msg => ({
-      ...msg,
-      sender: msg.profiles
-    })));
+    // Fetch sender profiles separately
+    const messagesWithSenders = await Promise.all(
+      data.map(async (message) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', message.sender_id)
+          .single();
+
+        return {
+          ...message,
+          sender: profile || { username: 'Unknown', avatar_url: null }
+        };
+      })
+    );
+
+    setMessages(messagesWithSenders);
   };
 
   const fetchConversationInfo = async () => {
@@ -91,22 +100,23 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       // Get other user info for direct messages
       const { data: participant } = await supabase
         .from('conversation_participants')
-        .select(`
-          profiles!inner (
-            username,
-            avatar_url,
-            status,
-            last_seen
-          )
-        `)
+        .select('user_id')
         .eq('conversation_id', conversationId)
         .neq('user_id', user.id)
         .single();
 
-      setConversationInfo({
-        ...conv,
-        otherUser: participant?.profiles
-      });
+      if (participant) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, avatar_url, status, last_seen')
+          .eq('id', participant.user_id)
+          .single();
+
+        setConversationInfo({
+          ...conv,
+          otherUser: profile
+        });
+      }
     } else {
       setConversationInfo(conv);
     }
@@ -126,27 +136,19 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
           filter: `conversation_id=eq.${conversationId}`
         },
         async (payload) => {
-          const { data: newMessage } = await supabase
-            .from('messages')
-            .select(`
-              id,
-              content,
-              sender_id,
-              created_at,
-              profiles!inner (
-                username,
-                avatar_url
-              )
-            `)
-            .eq('id', payload.new.id)
+          // Fetch the sender profile for the new message
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', payload.new.sender_id)
             .single();
 
-          if (newMessage) {
-            setMessages(prev => [...prev, {
-              ...newMessage,
-              sender: newMessage.profiles
-            }]);
-          }
+          const newMessage = {
+            ...payload.new,
+            sender: profile || { username: 'Unknown', avatar_url: null }
+          } as Message;
+
+          setMessages(prev => [...prev, newMessage]);
         }
       )
       .subscribe();

@@ -69,48 +69,55 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
       const conv = item.conversations;
       
       // Get last message
-      const { data: lastMessage } = await supabase
+      const { data: lastMessageData } = await supabase
         .from('messages')
-        .select(`
-          content,
-          created_at,
-          profiles!inner (username)
-        `)
+        .select('content, created_at, sender_id')
         .eq('conversation_id', conv.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
+
+      let lastMessage = undefined;
+      if (lastMessageData) {
+        // Get sender profile for the last message
+        const { data: senderProfile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', lastMessageData.sender_id)
+          .single();
+
+        lastMessage = {
+          content: lastMessageData.content,
+          created_at: lastMessageData.created_at,
+          sender: senderProfile || { username: 'Unknown' }
+        };
+      }
 
       // For direct messages, get the other user
       let otherUser = null;
       if (!conv.is_group) {
         const { data: participants } = await supabase
           .from('conversation_participants')
-          .select(`
-            user_id,
-            profiles!inner (
-              username,
-              avatar_url,
-              status
-            )
-          `)
+          .select('user_id')
           .eq('conversation_id', conv.id)
           .neq('user_id', user.id)
           .limit(1)
           .single();
 
         if (participants) {
-          otherUser = participants.profiles;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, avatar_url, status')
+            .eq('id', participants.user_id)
+            .single();
+
+          otherUser = profile;
         }
       }
 
       return {
         ...conv,
-        lastMessage: lastMessage ? {
-          content: lastMessage.content,
-          created_at: lastMessage.created_at,
-          sender: lastMessage.profiles
-        } : undefined,
+        lastMessage,
         otherUser
       };
     });

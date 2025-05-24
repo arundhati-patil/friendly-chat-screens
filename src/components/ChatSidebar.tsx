@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
-import { BsThreeDotsVertical, BsChat, BsArchive, BsPinned, BsSearch } from 'react-icons/bs';
+import { BsThreeDotsVertical, BsChat, BsArchive, BsPin, BsSearch } from 'react-icons/bs';
 import { IoMdAdd } from 'react-icons/io';
 
 interface Conversation {
@@ -75,7 +74,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
         .select(`
           content,
           created_at,
-          profiles!messages_sender_id_fkey (username)
+          profiles!inner (username)
         `)
         .eq('conversation_id', conv.id)
         .order('created_at', { ascending: false })
@@ -89,7 +88,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
           .from('conversation_participants')
           .select(`
             user_id,
-            profiles!conversation_participants_user_id_fkey (
+            profiles!inner (
               username,
               avatar_url,
               status
@@ -183,7 +182,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
             <span className="text-sm">Archived</span>
           </button>
           <button className="flex items-center space-x-2 text-gray-500 pb-2">
-            <BsPinned className="w-4 h-4" />
+            <BsPin className="w-4 h-4" />
             <span className="text-sm">Pinned</span>
           </button>
         </div>

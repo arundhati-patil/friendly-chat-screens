@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -58,7 +57,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
         content,
         sender_id,
         created_at,
-        profiles!messages_sender_id_fkey (
+        profiles!inner (
           username,
           avatar_url
         )
@@ -93,7 +92,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       const { data: participant } = await supabase
         .from('conversation_participants')
         .select(`
-          profiles!conversation_participants_user_id_fkey (
+          profiles!inner (
             username,
             avatar_url,
             status,
@@ -134,7 +133,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
               content,
               sender_id,
               created_at,
-              profiles!messages_sender_id_fkey (
+              profiles!inner (
                 username,
                 avatar_url
               )

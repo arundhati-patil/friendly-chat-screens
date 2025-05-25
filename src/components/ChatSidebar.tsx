@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { 
   BsThreeDotsVertical, 
   BsChat, 
@@ -15,8 +16,16 @@ import {
   BsPeople,
   BsGear,
   BsFilter,
-  BsBookmark
+  BsBookmark,
+  BsPlus,
+  BsX
 } from 'react-icons/bs';
+
+interface Label {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface Conversation {
   id: string;
@@ -36,6 +45,7 @@ interface Conversation {
     avatar_url: string | null;
     status: string;
   };
+  labels?: Label[];
 }
 
 interface ChatSidebarProps {
@@ -47,13 +57,31 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
     if (user) {
       fetchConversations();
+      fetchLabels();
     }
   }, [user]);
+
+  const fetchLabels = async () => {
+    const { data, error } = await supabase
+      .from('chat_labels')
+      .select('*')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching labels:', error);
+      return;
+    }
+
+    setAvailableLabels(data || []);
+  };
 
   const fetchConversations = async () => {
     if (!user) return;
@@ -80,6 +108,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
     const conversationPromises = data.map(async (item) => {
       const conv = item.conversations;
       
+      // Fetch last message
       const { data: lastMessageData } = await supabase
         .from('messages')
         .select('content, created_at, sender_id')
@@ -103,6 +132,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
         };
       }
 
+      // Fetch other user info for direct chats
       let otherUser = null;
       if (!conv.is_group) {
         const { data: participants } = await supabase
@@ -124,15 +154,85 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
         }
       }
 
+      // Fetch labels
+      const { data: labelData } = await supabase
+        .from('conversation_labels')
+        .select(`
+          chat_labels!inner (
+            id,
+            name,
+            color
+          )
+        `)
+        .eq('conversation_id', conv.id);
+
+      const labels = labelData?.map(item => item.chat_labels) || [];
+
       return {
         ...conv,
         lastMessage,
-        otherUser
+        otherUser,
+        labels
       };
     });
 
     const conversationsWithDetails = await Promise.all(conversationPromises);
     setConversations(conversationsWithDetails);
+  };
+
+  const createNewConversation = async () => {
+    if (!user) return;
+
+    // For demo purposes, create a conversation with a random existing user
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .neq('id', user.id)
+      .limit(1);
+
+    if (!profiles || profiles.length === 0) return;
+
+    const { data: newConv, error: convError } = await supabase
+      .from('conversations')
+      .insert({
+        is_group: false
+      })
+      .select()
+      .single();
+
+    if (convError) {
+      console.error('Error creating conversation:', convError);
+      return;
+    }
+
+    // Add participants
+    const { error: participantError } = await supabase
+      .from('conversation_participants')
+      .insert([
+        { conversation_id: newConv.id, user_id: user.id },
+        { conversation_id: newConv.id, user_id: profiles[0].id }
+      ]);
+
+    if (participantError) {
+      console.error('Error adding participants:', participantError);
+      return;
+    }
+
+    fetchConversations();
+    onSelectConversation(newConv.id);
+  };
+
+  const toggleLabelFilter = (labelId: string) => {
+    setSelectedLabels(prev => 
+      prev.includes(labelId) 
+        ? prev.filter(id => id !== labelId)
+        : [...prev, labelId]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedLabels([]);
+    setActiveFilter('all');
   };
 
   const formatTime = (timestamp: string) => {
@@ -156,7 +256,12 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
 
   const filteredConversations = conversations.filter(conv => {
     const displayName = conv.is_group ? conv.name : conv.otherUser?.username;
-    return displayName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = displayName?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesLabels = selectedLabels.length === 0 || 
+      selectedLabels.some(labelId => conv.labels?.some(label => label.id === labelId));
+
+    return matchesSearch && matchesLabels;
   });
 
   return (
@@ -209,9 +314,15 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-semibold">Chats</h1>
             <div className="flex items-center space-x-2">
+              <Button
+                onClick={createNewConversation}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <BsPlus className="w-4 h-4" />
+              </Button>
               <button className="text-green-600 text-sm">Refresh</button>
               <button className="text-green-600 text-sm">Help</button>
-              <span className="text-sm text-gray-500">5 / 6 phones</span>
             </div>
           </div>
           
@@ -219,21 +330,50 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
           <div className="flex items-center space-x-2 mb-3">
             <button 
               className={`flex items-center space-x-1 px-3 py-1 rounded text-sm ${
-                activeFilter === 'all' ? 'bg-green-100 text-green-700' : 'text-gray-600'
+                showFilters ? 'bg-green-100 text-green-700' : 'text-gray-600'
               }`}
-              onClick={() => setActiveFilter('all')}
+              onClick={() => setShowFilters(!showFilters)}
             >
               <BsFilter className="w-4 h-4" />
-              <span>Custom filter</span>
+              <span>Filters</span>
             </button>
-            <button className="text-green-600 text-sm">Save</button>
+            {(selectedLabels.length > 0) && (
+              <button 
+                onClick={clearFilters}
+                className="text-green-600 text-sm"
+              >
+                Clear
+              </button>
+            )}
           </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="mb-3 p-3 bg-gray-50 rounded">
+              <h4 className="text-sm font-medium mb-2">Filter by Labels</h4>
+              <div className="flex flex-wrap gap-2">
+                {availableLabels.map((label) => (
+                  <button
+                    key={label.id}
+                    onClick={() => toggleLabelFilter(label.id)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white transition-opacity ${
+                      selectedLabels.includes(label.id) ? 'opacity-100' : 'opacity-60'
+                    }`}
+                    style={{ backgroundColor: label.color }}
+                  >
+                    {label.name}
+                    {selectedLabels.includes(label.id) && <BsX className="w-3 h-3" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="relative">
             <BsSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
               type="text"
-              placeholder="Search"
+              placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-gray-50 border-gray-300"
@@ -241,9 +381,9 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
           </div>
 
           <div className="flex items-center space-x-2 mt-3">
-            <span className="text-sm text-gray-600">Filtered</span>
+            <span className="text-sm text-gray-600">Total</span>
             <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-              <span className="text-xs text-white font-semibold">2</span>
+              <span className="text-xs text-white font-semibold">{filteredConversations.length}</span>
             </div>
           </div>
         </div>
@@ -281,39 +421,53 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
                       <h3 className="text-sm font-medium text-gray-900 truncate">
                         {displayName || 'Unknown User'}
                       </h3>
-                      <div className="flex items-center space-x-1">
-                        <span className="bg-orange-100 text-orange-800 text-xs px-2 py-0.5 rounded">
-                          Demo
+                      {conversation.lastMessage && (
+                        <span className="text-xs text-gray-500">
+                          {formatTime(conversation.lastMessage.created_at)}
                         </span>
-                        {conversation.lastMessage && (
-                          <span className="text-xs text-gray-500">
-                            {formatTime(conversation.lastMessage.created_at)}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
                     
-                    <div className="text-xs text-gray-500 mb-1">
-                      Support2: {displayName || 'Unknown User'}
-                    </div>
+                    {/* Labels */}
+                    {conversation.labels && conversation.labels.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {conversation.labels.slice(0, 2).map((label) => (
+                          <span
+                            key={label.id}
+                            className="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium text-white"
+                            style={{ backgroundColor: label.color }}
+                          >
+                            {label.name}
+                          </span>
+                        ))}
+                        {conversation.labels.length > 2 && (
+                          <span className="text-xs text-gray-500">+{conversation.labels.length - 2}</span>
+                        )}
+                      </div>
+                    )}
                     
                     {conversation.lastMessage && (
                       <p className="text-sm text-gray-600 truncate">
-                        {conversation.lastMessage.content}
+                        {conversation.lastMessage.sender.username}: {conversation.lastMessage.content}
                       </p>
                     )}
                     
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-gray-400">
-                        📞 +91 99799 44006 +1
+                        {conversation.otherUser?.status || 'offline'}
                       </span>
-                      <span className="text-xs text-gray-400">Yesterday</span>
                     </div>
                   </div>
                 </div>
               </div>
             );
           })}
+          
+          {filteredConversations.length === 0 && (
+            <div className="p-4 text-center text-gray-500">
+              {searchQuery || selectedLabels.length > 0 ? 'No matching conversations' : 'No conversations yet'}
+            </div>
+          )}
         </div>
       </div>
     </div>

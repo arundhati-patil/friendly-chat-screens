@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import LabelManager from './LabelManager';
+import MemberManager from './MemberManager';
 import { 
   BsThreeDotsVertical, 
   BsSearch, 
@@ -127,7 +129,21 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
         });
       }
     } else {
-      setConversationInfo(conv);
+      // For group chats, fetch all participants
+      const { data: participants } = await supabase
+        .from('conversation_participants')
+        .select(`
+          profiles!inner (
+            username,
+            avatar_url
+          )
+        `)
+        .eq('conversation_id', conversationId);
+
+      setConversationInfo({
+        ...conv,
+        participants: participants?.map(p => p.profiles) || []
+      });
     }
   };
 
@@ -221,8 +237,12 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   }
 
   const displayName = conversationInfo?.is_group 
-    ? conversationInfo.name 
+    ? conversationInfo.name || 'Group Chat'
     : conversationInfo?.otherUser?.username;
+
+  const participantCount = conversationInfo?.is_group 
+    ? conversationInfo.participants?.length || 0
+    : 2;
 
   return (
     <div className="flex-1 flex flex-col bg-white">
@@ -238,27 +258,26 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
             </Avatar>
             <div>
               <h2 className="font-medium text-gray-900 flex items-center space-x-2">
-                <span>{displayName || 'Test El Centro'}</span>
-                <div className="flex space-x-1">
-                  <Avatar className="w-6 h-6">
-                    <AvatarFallback className="bg-gray-400 text-white text-xs">R</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="w-6 h-6">
-                    <AvatarFallback className="bg-gray-400 text-white text-xs">A</AvatarFallback>
-                  </Avatar>
-                  <Avatar className="w-6 h-6">
-                    <AvatarFallback className="bg-gray-400 text-white text-xs">T</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-gray-500">+3</span>
-                </div>
+                <span>{displayName || 'Chat'}</span>
+                {conversationInfo?.is_group && (
+                  <span className="text-sm text-gray-500">({participantCount} members)</span>
+                )}
               </h2>
               <p className="text-sm text-gray-500">
-                Roshson Airtel Terminal Jio, Bharat Kumar Ramesh, Periskope
+                {conversationInfo?.otherUser?.status === 'online' ? 'Online' : 'Last seen recently'}
               </p>
             </div>
           </div>
           
           <div className="flex items-center space-x-2">
+            <LabelManager 
+              conversationId={conversationId} 
+              onLabelsChange={fetchConversationInfo}
+            />
+            <MemberManager 
+              conversationId={conversationId} 
+              onMembersChange={fetchConversationInfo}
+            />
             <button className="p-2 hover:bg-gray-100 rounded">
               <BsBookmark className="w-4 h-4 text-gray-600" />
             </button>
@@ -309,10 +328,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
                     {!isCurrentUser && (
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-medium text-gray-900">
-                          {message.sender.username || 'Roshisaq Airtel'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          +91 93848 47025
+                          {message.sender.username || 'Unknown User'}
                         </span>
                         <span className="text-xs text-gray-500">
                           {formatTime(message.created_at)}
@@ -384,7 +400,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
               type="text"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Message..."
+              placeholder="Type a message..."
               className="border-gray-300 rounded-lg"
               disabled={loading}
             />
@@ -402,9 +418,11 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
         <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
           <div className="flex items-center space-x-2">
             <Avatar className="w-4 h-4">
-              <AvatarFallback className="bg-green-500 text-white text-xs">P</AvatarFallback>
+              <AvatarFallback className="bg-green-500 text-white text-xs">
+                {user?.user_metadata?.username?.charAt(0).toUpperCase() || 'U'}
+              </AvatarFallback>
             </Avatar>
-            <span>Periskope</span>
+            <span>{user?.user_metadata?.username || 'You'}</span>
           </div>
           <span>⚪</span>
         </div>

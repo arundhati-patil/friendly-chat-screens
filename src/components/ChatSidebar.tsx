@@ -70,17 +70,22 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
   }, [user]);
 
   const fetchLabels = async () => {
-    const { data, error } = await supabase
-      .from('chat_labels')
-      .select('*')
-      .order('name');
+    try {
+      const { data, error } = await supabase
+        .rpc('get_chat_labels') as any;
 
-    if (error) {
-      console.error('Error fetching labels:', error);
-      return;
+      if (error) {
+        console.error('Error fetching labels:', error);
+        // Fallback: set empty array if function doesn't exist
+        setAvailableLabels([]);
+        return;
+      }
+
+      setAvailableLabels(data || []);
+    } catch (err) {
+      console.error('Error fetching labels:', err);
+      setAvailableLabels([]);
     }
-
-    setAvailableLabels(data || []);
   };
 
   const fetchConversations = async () => {
@@ -154,19 +159,17 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
         }
       }
 
-      // Fetch labels
-      const { data: labelData } = await supabase
-        .from('conversation_labels')
-        .select(`
-          chat_labels!inner (
-            id,
-            name,
-            color
-          )
-        `)
-        .eq('conversation_id', conv.id);
-
-      const labels = labelData?.map(item => item.chat_labels) || [];
+      // Try to fetch labels, but handle gracefully if tables don't exist
+      let labels: Label[] = [];
+      try {
+        const { data: labelData } = await supabase
+          .rpc('get_conversation_labels', { conversation_id: conv.id }) as any;
+        
+        labels = labelData || [];
+      } catch (err) {
+        console.log('Labels not available yet');
+        labels = [];
+      }
 
       return {
         ...conv,

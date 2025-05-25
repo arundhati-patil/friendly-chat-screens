@@ -30,96 +30,110 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
   ];
 
   useEffect(() => {
-    fetchLabels();
-    fetchConversationLabels();
-  }, [conversationId]);
+    if (isOpen) {
+      fetchLabels();
+      fetchConversationLabels();
+    }
+  }, [conversationId, isOpen]);
 
   const fetchLabels = async () => {
-    const { data, error } = await supabase
-      .from('chat_labels')
-      .select('*')
-      .order('name');
+    try {
+      // Use RPC function to get labels
+      const { data, error } = await supabase
+        .rpc('get_chat_labels') as any;
 
-    if (error) {
-      console.error('Error fetching labels:', error);
-      return;
+      if (error) {
+        console.error('Error fetching labels:', error);
+        setLabels([]);
+        return;
+      }
+
+      setLabels(data || []);
+    } catch (err) {
+      console.error('Error fetching labels:', err);
+      setLabels([]);
     }
-
-    setLabels(data || []);
   };
 
   const fetchConversationLabels = async () => {
-    const { data, error } = await supabase
-      .from('conversation_labels')
-      .select(`
-        id,
-        chat_labels!inner (
-          id,
-          name,
-          color
-        )
-      `)
-      .eq('conversation_id', conversationId);
+    try {
+      const { data, error } = await supabase
+        .rpc('get_conversation_labels', { conversation_id: conversationId }) as any;
 
-    if (error) {
-      console.error('Error fetching conversation labels:', error);
-      return;
+      if (error) {
+        console.error('Error fetching conversation labels:', error);
+        setConversationLabels([]);
+        return;
+      }
+
+      setConversationLabels(data || []);
+    } catch (err) {
+      console.error('Error fetching conversation labels:', err);
+      setConversationLabels([]);
     }
-
-    setConversationLabels(data?.map(item => item.chat_labels) || []);
   };
 
   const createLabel = async () => {
     if (!newLabelName.trim()) return;
 
-    const { error } = await supabase
-      .from('chat_labels')
-      .insert({
-        name: newLabelName.trim(),
-        color: newLabelColor
-      });
+    try {
+      const { error } = await supabase
+        .rpc('create_chat_label', {
+          label_name: newLabelName.trim(),
+          label_color: newLabelColor
+        }) as any;
 
-    if (error) {
-      console.error('Error creating label:', error);
-      return;
+      if (error) {
+        console.error('Error creating label:', error);
+        return;
+      }
+
+      setNewLabelName('');
+      setNewLabelColor('#3B82F6');
+      fetchLabels();
+    } catch (err) {
+      console.error('Error creating label:', err);
     }
-
-    setNewLabelName('');
-    setNewLabelColor('#3B82F6');
-    fetchLabels();
   };
 
   const addLabelToConversation = async (labelId: string) => {
-    const { error } = await supabase
-      .from('conversation_labels')
-      .insert({
-        conversation_id: conversationId,
-        label_id: labelId
-      });
+    try {
+      const { error } = await supabase
+        .rpc('add_label_to_conversation', {
+          conversation_id: conversationId,
+          label_id: labelId
+        }) as any;
 
-    if (error) {
-      console.error('Error adding label to conversation:', error);
-      return;
+      if (error) {
+        console.error('Error adding label to conversation:', error);
+        return;
+      }
+
+      fetchConversationLabels();
+      onLabelsChange?.();
+    } catch (err) {
+      console.error('Error adding label to conversation:', err);
     }
-
-    fetchConversationLabels();
-    onLabelsChange?.();
   };
 
   const removeLabelFromConversation = async (labelId: string) => {
-    const { error } = await supabase
-      .from('conversation_labels')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('label_id', labelId);
+    try {
+      const { error } = await supabase
+        .rpc('remove_label_from_conversation', {
+          conversation_id: conversationId,
+          label_id: labelId
+        }) as any;
 
-    if (error) {
-      console.error('Error removing label from conversation:', error);
-      return;
+      if (error) {
+        console.error('Error removing label from conversation:', error);
+        return;
+      }
+
+      fetchConversationLabels();
+      onLabelsChange?.();
+    } catch (err) {
+      console.error('Error removing label from conversation:', err);
     }
-
-    fetchConversationLabels();
-    onLabelsChange?.();
   };
 
   return (

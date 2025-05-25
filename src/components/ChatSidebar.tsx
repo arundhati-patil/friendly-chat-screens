@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -71,7 +70,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
 
   const fetchLabels = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_chat_labels');
+      const { data, error } = await (supabase as any).rpc('get_chat_labels');
 
       if (error) {
         console.error('Error fetching labels:', error);
@@ -160,7 +159,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
       // Try to fetch labels, but handle gracefully if functions don't exist
       let labels: Label[] = [];
       try {
-        const { data: labelData } = await supabase.rpc('get_conversation_labels', { 
+        const { data: labelData } = await (supabase as any).rpc('get_conversation_labels', { 
           conversation_id: conv.id 
         });
         

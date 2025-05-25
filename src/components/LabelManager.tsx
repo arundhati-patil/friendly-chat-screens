@@ -38,7 +38,7 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
 
   const fetchLabels = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_chat_labels');
+      const { data, error } = await (supabase as any).rpc('get_chat_labels');
 
       if (error) {
         console.error('Error fetching labels:', error);
@@ -55,7 +55,7 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
 
   const fetchConversationLabels = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_conversation_labels', { 
+      const { data, error } = await (supabase as any).rpc('get_conversation_labels', { 
         conversation_id: conversationId 
       });
 
@@ -76,7 +76,7 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
     if (!newLabelName.trim()) return;
 
     try {
-      const { error } = await supabase.rpc('create_chat_label', {
+      const { error } = await (supabase as any).rpc('create_chat_label', {
         label_name: newLabelName.trim(),
         label_color: newLabelColor
       });
@@ -96,7 +96,7 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
 
   const addLabelToConversation = async (labelId: string) => {
     try {
-      const { error } = await supabase.rpc('add_label_to_conversation', {
+      const { error } = await (supabase as any).rpc('add_label_to_conversation', {
         conversation_id: conversationId,
         label_id: labelId
       });
@@ -115,7 +115,7 @@ const LabelManager = ({ conversationId, onLabelsChange }: LabelManagerProps) => 
 
   const removeLabelFromConversation = async (labelId: string) => {
     try {
-      const { error } = await supabase.rpc('remove_label_from_conversation', {
+      const { error } = await (supabase as any).rpc('remove_label_from_conversation', {
         conversation_id: conversationId,
         label_id: labelId
       });

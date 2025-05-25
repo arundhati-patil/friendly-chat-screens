@@ -71,12 +71,10 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
 
   const fetchLabels = async () => {
     try {
-      const { data, error } = await supabase
-        .rpc('get_chat_labels') as any;
+      const { data, error } = await supabase.rpc('get_chat_labels');
 
       if (error) {
         console.error('Error fetching labels:', error);
-        // Fallback: set empty array if function doesn't exist
         setAvailableLabels([]);
         return;
       }
@@ -159,11 +157,12 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
         }
       }
 
-      // Try to fetch labels, but handle gracefully if tables don't exist
+      // Try to fetch labels, but handle gracefully if functions don't exist
       let labels: Label[] = [];
       try {
-        const { data: labelData } = await supabase
-          .rpc('get_conversation_labels', { conversation_id: conv.id }) as any;
+        const { data: labelData } = await supabase.rpc('get_conversation_labels', { 
+          conversation_id: conv.id 
+        });
         
         labels = labelData || [];
       } catch (err) {

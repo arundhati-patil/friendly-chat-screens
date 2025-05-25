@@ -46,24 +46,39 @@ const MemberManager = ({ conversationId, onMembersChange }: MemberManagerProps) 
   };
 
   const fetchMembers = async () => {
-    const { data, error } = await supabase
-      .from('conversation_participants')
-      .select(`
-        user_id,
-        profiles!inner (
-          id,
-          username,
-          avatar_url
-        )
-      `)
-      .eq('conversation_id', conversationId);
+    try {
+      const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId);
 
-    if (error) {
-      console.error('Error fetching members:', error);
-      return;
+      if (error) {
+        console.error('Error fetching participants:', error);
+        return;
+      }
+
+      const userIds = data?.map(item => item.user_id) || [];
+      
+      if (userIds.length === 0) {
+        setMembers([]);
+        return;
+      }
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching member profiles:', profilesError);
+        return;
+      }
+
+      setMembers(profilesData || []);
+    } catch (err) {
+      console.error('Error in fetchMembers:', err);
+      setMembers([]);
     }
-
-    setMembers(data?.map(item => item.profiles) || []);
   };
 
   const addMember = async (userId: string) => {

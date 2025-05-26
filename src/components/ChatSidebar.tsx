@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { sampleConversations } from './SampleData';
 import { 
   BsThreeDotsVertical, 
   BsChat, 
@@ -44,6 +45,10 @@ interface Conversation {
     avatar_url: string | null;
     status: string;
   };
+  participants?: {
+    username: string;
+    avatar_url: string | null;
+  }[];
   labels?: Label[];
 }
 
@@ -59,6 +64,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [useSampleData, setUseSampleData] = useState(true);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
@@ -102,15 +108,19 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
       `)
       .eq('user_id', user.id);
 
-    if (error) {
-      console.error('Error fetching conversations:', error);
+    if (error || !data || data.length === 0) {
+      console.log('No conversations found, using sample data');
+      setConversations(sampleConversations);
+      setUseSampleData(true);
       return;
     }
 
+    setUseSampleData(false);
+
+    // Fetch last message
     const conversationPromises = data.map(async (item) => {
       const conv = item.conversations;
       
-      // Fetch last message
       const { data: lastMessageData } = await supabase
         .from('messages')
         .select('content, created_at, sender_id')
@@ -183,6 +193,11 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
 
   const createNewConversation = async () => {
     if (!user) return;
+
+    if (useSampleData) {
+      console.log('Using sample data, cannot create real conversations');
+      return;
+    }
 
     // For demo purposes, create a conversation with a random existing user
     const { data: profiles } = await supabase
@@ -319,6 +334,7 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
                 onClick={createNewConversation}
                 size="sm"
                 className="bg-green-600 hover:bg-green-700"
+                disabled={useSampleData}
               >
                 <BsPlus className="w-4 h-4" />
               </Button>
@@ -327,6 +343,12 @@ const ChatSidebar = ({ selectedConversation, onSelectConversation }: ChatSidebar
             </div>
           </div>
           
+          {useSampleData && (
+            <div className="mb-3 p-2 bg-blue-50 rounded text-sm text-blue-700">
+              📝 Showing sample conversations. Create a real conversation to see your data.
+            </div>
+          )}
+
           {/* Filter and Search */}
           <div className="flex items-center space-x-2 mb-3">
             <button 

@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { getSampleConversationMessages, sampleConversations, sampleUsers } from './SampleData';
 import LabelManager from './LabelManager';
 import MemberManager from './MemberManager';
 import { 
@@ -41,6 +42,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [conversationInfo, setConversationInfo] = useState<any>(null);
+  const [useSampleData, setUseSampleData] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
@@ -74,10 +76,15 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching messages:', error);
+    if (error || !data || data.length === 0) {
+      console.log('No messages found, using sample data');
+      const sampleMessages = getSampleConversationMessages(conversationId);
+      setMessages(sampleMessages);
+      setUseSampleData(true);
       return;
     }
+
+    setUseSampleData(false);
 
     const messagesWithSenders = await Promise.all(
       data.map(async (message) => {
@@ -100,13 +107,24 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   const fetchConversationInfo = async () => {
     if (!conversationId || !user) return;
 
+    // First try to get from database
     const { data: conv } = await supabase
       .from('conversations')
       .select('*')
       .eq('id', conversationId)
       .single();
 
-    if (!conv) return;
+    if (!conv) {
+      // Use sample data
+      const sampleConv = sampleConversations.find(c => c.id === conversationId);
+      if (sampleConv) {
+        setConversationInfo(sampleConv);
+        setUseSampleData(true);
+      }
+      return;
+    }
+
+    setUseSampleData(false);
 
     if (!conv.is_group) {
       const { data: participant } = await supabase
@@ -148,7 +166,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   };
 
   const subscribeToMessages = () => {
-    if (!conversationId) return;
+    if (!conversationId || useSampleData) return;
 
     const channel = supabase
       .channel('messages')
@@ -185,6 +203,23 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !conversationId || !user) return;
+
+    if (useSampleData) {
+      // Add message to sample data for demo purposes
+      const demoMessage: Message = {
+        id: `demo-${Date.now()}`,
+        content: newMessage.trim(),
+        sender_id: user.id,
+        created_at: new Date().toISOString(),
+        sender: {
+          username: user.user_metadata?.username || 'You',
+          avatar_url: null
+        }
+      };
+      setMessages(prev => [...prev, demoMessage]);
+      setNewMessage('');
+      return;
+    }
 
     setLoading(true);
 
@@ -251,7 +286,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Avatar className="w-10 h-10">
-              <AvatarImage src={conversationInfo?.otherUser?.avatar_url || undefined} />
+              <AvatarImage src={conversationInfo?.is_group ? conversationInfo?.avatar_url : conversationInfo?.otherUser?.avatar_url || undefined} />
               <AvatarFallback className="bg-blue-500 text-white">
                 {displayName?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
@@ -270,14 +305,18 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <LabelManager 
-              conversationId={conversationId} 
-              onLabelsChange={fetchConversationInfo}
-            />
-            <MemberManager 
-              conversationId={conversationId} 
-              onMembersChange={fetchConversationInfo}
-            />
+            {!useSampleData && (
+              <>
+                <LabelManager 
+                  conversationId={conversationId} 
+                  onLabelsChange={fetchConversationInfo}
+                />
+                <MemberManager 
+                  conversationId={conversationId} 
+                  onMembersChange={fetchConversationInfo}
+                />
+              </>
+            )}
             <button className="p-2 hover:bg-gray-100 rounded">
               <BsBookmark className="w-4 h-4 text-gray-600" />
             </button>
@@ -292,6 +331,12 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
             </button>
           </div>
         </div>
+        
+        {useSampleData && (
+          <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+            📝 This is a sample conversation. Messages you send will only appear in this demo.
+          </div>
+        )}
       </div>
 
       {/* Messages Area */}

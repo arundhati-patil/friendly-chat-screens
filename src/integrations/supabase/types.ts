@@ -9,6 +9,63 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      chat_labels: {
+        Row: {
+          color: string
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      conversation_labels: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          id: string
+          label_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          label_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_labels_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "chat_labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -132,7 +189,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_label_to_conversation: {
+        Args: { conversation_id: string; label_id: string }
+        Returns: undefined
+      }
+      create_chat_label: {
+        Args: { label_name: string; label_color: string }
+        Returns: string
+      }
+      get_chat_labels: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          name: string
+          color: string
+        }[]
+      }
+      get_conversation_labels: {
+        Args: { conversation_id: string }
+        Returns: {
+          id: string
+          name: string
+          color: string
+        }[]
+      }
+      remove_label_from_conversation: {
+        Args: { conversation_id: string; label_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

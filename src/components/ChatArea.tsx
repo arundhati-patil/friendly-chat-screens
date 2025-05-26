@@ -8,18 +8,21 @@ import { Button } from '@/components/ui/button';
 import { getSampleConversationMessages, sampleConversations, sampleUsers } from './SampleData';
 import LabelManager from './LabelManager';
 import MemberManager from './MemberManager';
+import EmojiPicker from './EmojiPicker';
+import FileAttachment from './FileAttachment';
+import { indexedDBService } from '@/services/indexedDBService';
 import { 
   BsThreeDotsVertical, 
   BsSearch, 
   BsPhone, 
   BsCamera,
-  BsPaperclip,
-  BsEmojiSmile,
   BsMic,
   BsArrowRight,
   BsBookmark,
   BsPersonCheck,
-  BsChat
+  BsChat,
+  BsX,
+  BsDownload
 } from 'react-icons/bs';
 
 interface Message {
@@ -30,6 +33,11 @@ interface Message {
   sender: {
     username: string;
     avatar_url: string | null;
+  };
+  file?: {
+    name: string;
+    type: 'image' | 'document';
+    url: string;
   };
 }
 
@@ -43,6 +51,8 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
   const [loading, setLoading] = useState(false);
   const [conversationInfo, setConversationInfo] = useState<any>(null);
   const [useSampleData, setUseSampleData] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
@@ -51,6 +61,8 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       fetchMessages();
       fetchConversationInfo();
       subscribeToMessages();
+      // Store conversation in IndexedDB
+      storeConversationLocally();
     }
   }, [conversationId]);
 
@@ -58,12 +70,56 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    // Initialize IndexedDB
+    indexedDBService.init().catch(console.error);
+  }, []);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const storeConversationLocally = async () => {
+    if (!conversationId || !conversationInfo) return;
+
+    try {
+      await indexedDBService.storeConversation({
+        id: conversationId,
+        ...conversationInfo
+      });
+    } catch (error) {
+      console.error('Error storing conversation locally:', error);
+    }
+  };
+
+  const storeMessagesLocally = async (messagesToStore: Message[]) => {
+    try {
+      const storableMessages = messagesToStore.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        sender_id: msg.sender_id,
+        conversation_id: conversationId!,
+        created_at: msg.created_at,
+        sender: msg.sender
+      }));
+      await indexedDBService.storeMessages(storableMessages);
+    } catch (error) {
+      console.error('Error storing messages locally:', error);
+    }
+  };
+
   const fetchMessages = async () => {
     if (!conversationId) return;
+
+    // First, try to load from IndexedDB
+    try {
+      const localMessages = await indexedDBService.getMessagesByConversation(conversationId);
+      if (localMessages.length > 0) {
+        setMessages(localMessages as Message[]);
+      }
+    } catch (error) {
+      console.error('Error loading local messages:', error);
+    }
 
     const { data, error } = await supabase
       .from('messages')
@@ -102,6 +158,9 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
     );
 
     setMessages(messagesWithSenders);
+    
+    // Store messages locally
+    storeMessagesLocally(messagesWithSenders);
   };
 
   const fetchConversationInfo = async () => {
@@ -202,22 +261,43 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !conversationId || !user) return;
+    if ((!newMessage.trim() && !selectedFile) || !conversationId || !user) return;
+
+    let messageContent = newMessage.trim();
+    let fileData = null;
+
+    if (selectedFile) {
+      // For demo purposes, we'll create a mock file URL
+      // In a real app, you'd upload to Supabase Storage
+      const fileUrl = URL.createObjectURL(selectedFile);
+      fileData = {
+        name: selectedFile.name,
+        type: selectedFile.type.startsWith('image/') ? 'image' as const : 'document' as const,
+        url: fileUrl
+      };
+      
+      if (!messageContent) {
+        messageContent = selectedFile.type.startsWith('image/') ? '📷 Image' : '📄 ' + selectedFile.name;
+      }
+    }
 
     if (useSampleData) {
       // Add message to sample data for demo purposes
       const demoMessage: Message = {
         id: `demo-${Date.now()}`,
-        content: newMessage.trim(),
+        content: messageContent,
         sender_id: user.id,
         created_at: new Date().toISOString(),
         sender: {
           username: user.user_metadata?.username || 'You',
           avatar_url: null
-        }
+        },
+        ...(fileData && { file: fileData })
       };
       setMessages(prev => [...prev, demoMessage]);
       setNewMessage('');
+      setSelectedFile(null);
+      setFilePreview(null);
       return;
     }
 
@@ -228,16 +308,41 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
       .insert({
         conversation_id: conversationId,
         sender_id: user.id,
-        content: newMessage.trim()
+        content: messageContent
       });
 
     if (error) {
       console.error('Error sending message:', error);
     } else {
       setNewMessage('');
+      setSelectedFile(null);
+      setFilePreview(null);
     }
 
     setLoading(false);
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+  };
+
+  const handleFileSelect = (file: File, type: 'image' | 'document') => {
+    setSelectedFile(file);
+    
+    if (type === 'image') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFilePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
+    }
+  };
+
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
   };
 
   const formatTime = (timestamp: string) => {
@@ -386,7 +491,25 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
                         ? 'bg-green-500 text-white' 
                         : 'bg-white text-gray-900 shadow-sm border'
                     }`}>
-                      <p className="text-sm">{message.content}</p>
+                      {message.file && message.file.type === 'image' ? (
+                        <div className="space-y-2">
+                          <img 
+                            src={message.file.url} 
+                            alt={message.file.name}
+                            className="max-w-full h-auto rounded"
+                          />
+                          {message.content !== '📷 Image' && (
+                            <p className="text-sm">{message.content}</p>
+                          )}
+                        </div>
+                      ) : message.file && message.file.type === 'document' ? (
+                        <div className="flex items-center space-x-2">
+                          <BsDownload className="w-4 h-4" />
+                          <span className="text-sm">{message.file.name}</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm">{message.content}</p>
+                      )}
                     </div>
                     
                     {isCurrentUser && (
@@ -411,22 +534,36 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
           <button className="text-green-600 text-sm font-medium">WhatsApp</button>
           <button className="text-gray-500 text-sm">Private Note</button>
         </div>
+
+        {/* File Preview */}
+        {selectedFile && (
+          <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                {filePreview ? (
+                  <img src={filePreview} alt="Preview" className="w-12 h-12 object-cover rounded" />
+                ) : (
+                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                    <BsDownload className="w-6 h-6 text-gray-500" />
+                  </div>
+                )}
+                <span className="text-sm font-medium">{selectedFile.name}</span>
+              </div>
+              <button
+                onClick={removeSelectedFile}
+                className="p-1 hover:bg-gray-200 rounded"
+              >
+                <BsX className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={sendMessage} className="flex items-end space-x-2">
           <div className="flex-1 relative">
             <div className="flex items-center space-x-2 mb-2">
-              <button
-                type="button"
-                className="p-1 hover:bg-gray-100 rounded text-gray-500"
-              >
-                <BsPaperclip className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                className="p-1 hover:bg-gray-100 rounded text-gray-500"
-              >
-                <BsEmojiSmile className="w-4 h-4" />
-              </button>
+              <FileAttachment onFileSelect={handleFileSelect} />
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
               <button
                 type="button"
                 className="p-1 hover:bg-gray-100 rounded text-gray-500"
@@ -453,7 +590,7 @@ const ChatArea = ({ conversationId }: ChatAreaProps) => {
 
           <Button
             type="submit"
-            disabled={loading || !newMessage.trim()}
+            disabled={loading || (!newMessage.trim() && !selectedFile)}
             className="bg-green-600 hover:bg-green-700 rounded-full w-10 h-10 p-0"
           >
             <BsArrowRight className="w-4 h-4" />
